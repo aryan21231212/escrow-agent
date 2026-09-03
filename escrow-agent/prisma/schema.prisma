@@ -1,3 +1,52 @@
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  name           String?
+  razorpayFundId String?          @map("razorpay_fund_id")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  clientContracts EscrowContract[] @relation("ClientContracts")
+  vendorContracts EscrowContract[] @relation("VendorContracts")
+
+  @@map("users")
+}
+
+model EscrowContract {
+  id          String      @id @default(uuid())
+  title       String
+  plainTerms  String      @map("plain_terms")
+  totalAmount Float       @map("total_amount")
+  status      String      @default("IN_PROGRESS")
+  clientId    String      @map("client_id")
+  client      User        @relation("ClientContracts", fields: [clientId], references: [id])
+  vendorId    String      @map("vendor_id")
+  vendor      User        @relation("VendorContracts", fields: [vendorId], references: [id])
+  milestones  Milestone[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("escrow_contracts")
+}
+
+model Milestone {
+  id                  String         @id @default(uuid())
+  contractId          String         @map("contract_id")
+  contract            EscrowContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  description         String
+  amount              Float
+  status              String         @default("PENDING")
+  verificationContext String?        @map("verification_context")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@map("milestones")
 }
