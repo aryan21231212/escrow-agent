@@ -60,7 +60,7 @@ export default function Home() {
     setCreationResult(null);
 
     try {
-      const res = await fetch("/api/contracts", {
+      const res = await fetch("/api/contract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
