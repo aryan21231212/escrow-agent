@@ -42,6 +42,14 @@ export async function POST(req: Request) {
       );
     }
 
+    // Add this check right after fetching the milestone from the database:
+    if (milestone.status === "VERIFIED_AND_PAID") {
+    return NextResponse.json(
+    { success: false, error: "This milestone has already been verified and paid out!" },
+    { status: 400 }
+  );
+  }
+
     // 1. Gemini AI Work Verification
     const prompt = `
       You are an autonomous Escrow Agent AI. Your job is to verify if submitted work proof fulfills the milestone requirements.
