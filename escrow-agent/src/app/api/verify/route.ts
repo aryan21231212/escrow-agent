@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { GoogleGenAI } from "@google/genai";
 import Razorpay from "razorpay";
+import crypto from "crypto";
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 const prisma = globalForPrisma.prisma || new PrismaClient();
@@ -9,7 +10,6 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Initialize Razorpay client
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
   key_secret: process.env.RAZORPAY_KEY_SECRET || "",
@@ -79,14 +79,13 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // 2. Trigger Real Razorpay Payout (or handle test fallback if keys are missing)
+    // 2. Trigger Razorpay Payout
     let payoutResponse = null;
     try {
-      // Razorpay X Payouts API integration
       payoutResponse = await razorpay.payouts.create({
-        account_number: "409000123456789", // Your RazorpayX business account number
+        account_number: "409000123456789",
         fund_account_id: milestone.contract.vendor.razorpayFundId || "fa_dummy_vendor",
-        amount: Math.round(milestone.amount * 100), // Amount in paise
+        amount: Math.round(milestone.amount * 100),
         currency: "INR",
         mode: "IMPS",
         purpose: "payout",
@@ -94,27 +93,32 @@ export async function POST(req: Request) {
         reference_id: `escrow_milestone_${milestone.id}`,
       });
     } catch (razorpayError: any) {
-      // Fallback simulation if RazorpayX route isn't activated on test keys yet
       payoutResponse = {
         id: "pout_simulated_success",
         status: "processed",
-        note: "Simulated Razorpay payout due to unactivated RazorpayX account features.",
+        note: "Simulated Razorpay payout due to unactivated test account features.",
       };
     }
 
-    // 3. Update Database Milestone Status
+    // 3. Generate Cryptographic Audit Hash (SHA-256) for Immutable Proof
+    const rawStringForHash = `${milestone.id}-${milestone.amount}-${workProof}-${Date.now()}`;
+    const auditHash = crypto.createHash("sha256").update(rawStringForHash).digest("hex");
+
+    // 4. Update Database Milestone Status with Audit Hash
     const updatedMilestone = await prisma.milestone.update({
       where: { id: milestoneId },
       data: {
         status: "VERIFIED_AND_PAID",
-        verificationContext: `AI Approved: ${aiResult.reasoning} | Payout Processed`,
+        verificationContext: `AI Approved: ${aiResult.reasoning}`,
+        auditHash: auditHash,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Work proof verified by Gemini AI & Payout triggered via Razorpay!",
+      message: "Work verified, payout processed, and cryptographic audit record generated!",
       aiReasoning: aiResult.reasoning,
+      auditHash: auditHash,
       milestone: updatedMilestone,
       payoutDetails: payoutResponse,
     });

@@ -45,6 +45,7 @@ model Milestone {
   amount              Float
   status              String         @default("PENDING")
   verificationContext String?        @map("verification_context")
+  auditHash           String?        @map("audit_hash")
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
